@@ -4,9 +4,9 @@
 
 🎮 遊戲連結
 
-點此開始狩獵
+[點此開始狩獵](https://script.google.com/macros/s/AKfycbx0lAfFvWUkkHY9QLCfpehEI3OOha4kiufnASFqDxWVfDFlzQfTcQUXQHQDnZeVthaDqg/exec)
 
-🛠️ 技術棧
+🛠️ 技術
 
 前端: HTML5 Canvas, Tailwind CSS, JavaScript
 
