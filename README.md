@@ -4,7 +4,7 @@
 
 🎮 遊戲演示
 
-運行網址: [(https://script.google.com/macros/s/AKfycbzl4rl7UycLvHwxnCWv_TwrzwYMwtlt05MN01NmgJKgqkEDl_5tvwgA4ehiKK3NVgWw_g/exec)]
+運行網址: [(https://script.google.com/macros/s/AKfycbyKdc3ASxWHj3Sz9_zdtcLWWWlkUv2vA9RYxiNCyUZa8h5eWNZvOf6Az3YV8glnmHzSTg/exec)]
 
 遊戲玩法: 左右方向鍵移動，空白鍵射擊。抵禦熊的攻擊並儲存最高分數！
 
