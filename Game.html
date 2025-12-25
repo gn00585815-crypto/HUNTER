@@ -4,25 +4,60 @@
   <base target="_top">
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    canvas { background: #2d5a27; border: 4px solid #1a3a18; display: block; margin: 0 auto; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+    canvas { 
+      background: #2d5a27; 
+      border: 4px solid #1a3a18; 
+      display: block; 
+      margin: 0 auto; 
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5); 
+    }
     body { background-color: #1a202c; color: white; overflow-x: hidden; }
+    
+    /* Boss 來襲的警告動畫 */
+    @keyframes flash {
+      0% { opacity: 0; transform: scale(0.5); }
+      50% { opacity: 1; transform: scale(1.2); }
+      100% { opacity: 0; transform: scale(1.5); }
+    }
+    .boss-warning {
+      position: absolute;
+      top: 40%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: red;
+      font-size: 3rem;
+      font-weight: bold;
+      text-shadow: 2px 2px 0px black;
+      pointer-events: none;
+      display: none;
+    }
+    .warning-active {
+      display: block;
+      animation: flash 2s ease-in-out;
+    }
   </style>
 </head>
 <body class="flex flex-col items-center justify-center min-h-screen p-4">
 
-  <div class="text-center mb-4">
+  <div class="text-center mb-4 relative w-full max-w-md">
     <h1 class="text-4xl font-bold text-yellow-500 mb-2">🤠 獵人 vs 熊 🐻</h1>
-    <p class="text-gray-400">分數: <span id="score" class="text-white text-2xl font-mono">0</span></p>
+    <div class="flex justify-between px-4 text-xl font-mono font-bold">
+        <p>分數: <span id="score" class="text-white">0</span></p>
+        <p class="text-yellow-400 text-sm mt-1">下個BOSS: <span id="nextBoss">500</span></p>
+    </div>
   </div>
 
-  <canvas id="gameCanvas" width="400" height="500"></canvas>
+  <div style="position: relative;">
+    <canvas id="gameCanvas" width="400" height="500"></canvas>
+    <div id="bossWarning" class="boss-warning">⚠️ BOSS 來襲! ⚠️</div>
+  </div>
 
   <div class="mt-6 space-x-4 text-center">
     <div class="flex gap-4 justify-center mb-4">
         <button id="startBtn" onclick="initGame()" class="bg-green-600 hover:bg-green-700 px-8 py-2 rounded-full font-bold transition-all">開始獵捕</button>
-        <button onclick="navToLeaderboard()" class="bg-blue-600 hover:bg-blue-700 px-8 py-2 rounded-full font-bold transition-all">排行榜 (Read)</button>
+        <button onclick="navToLeaderboard()" class="bg-blue-600 hover:bg-blue-700 px-8 py-2 rounded-full font-bold transition-all">排行榜</button>
     </div>
-    <p class="text-xs text-gray-500">控制方式：左右方向鍵移動，空白鍵或上方向鍵發射子彈</p>
+    <p class="text-xs text-gray-500">控制：左右移動，空白鍵/上鍵射擊 | 每500分遭遇 BOSS</p>
   </div>
 
   <!-- 遊戲結束對話框 -->
@@ -42,14 +77,32 @@
   <script>
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
+    
+    // 遊戲狀態
     let gameActive = false;
     let score = 0;
+    let frame = 0;
+    let lastFireFrame = 0;
+
+    // 角色物件
     let hunterX = 200;
     let bullets = [];
     let bears = [];
-    let bearSpeed = 2;
-    let frame = 0;
-    let lastFireFrame = 0; // 用於控制發射速率的冷卻時間
+    
+    // BOSS 相關變數
+    let bossMode = false;
+    let nextBossThreshold = 500;
+    let logs = []; // BOSS 的攻擊 (木頭)
+    let boss = {
+        x: 200,
+        y: 60,
+        hp: 20,
+        maxHp: 20,
+        width: 60,
+        speed: 3,
+        direction: 1, // 1:右, -1:左
+        attackCooldown: 0
+    };
 
     // 鍵盤監聽
     let keys = {};
@@ -58,18 +111,29 @@
 
     function initGame() {
       if (gameActive) return;
+      // 重置所有數值
       score = 0;
-      bearSpeed = 2;
-      bullets = [];
-      bears = [];
-      hunterX = 200;
       frame = 0;
       lastFireFrame = 0;
       gameActive = true;
+      
+      // 重置角色與敵人
+      hunterX = 200;
+      bullets = [];
+      bears = [];
+      logs = [];
+      
+      // 重置 BOSS 狀態
+      bossMode = false;
+      nextBossThreshold = 500;
+      
+      // UI 更新
       document.getElementById('startBtn').innerText = "進行中...";
       document.getElementById('startBtn').disabled = true;
       document.getElementById('score').innerText = "0";
+      document.getElementById('nextBoss').innerText = "500";
       document.getElementById('saveModal').classList.add('hidden');
+      
       loop();
     }
 
@@ -82,90 +146,220 @@
     }
 
     function update() {
-      // 1. 獵人左右移動
+      // 1. 獵人移動
       if (keys['ArrowLeft'] && hunterX > 25) hunterX -= 6;
       if (keys['ArrowRight'] && hunterX < 375) hunterX += 6;
       
-      // 2. 手動發射子彈 (修改點：改為偵測鍵盤且加入冷卻時間)
-      // 每 12 幀 (約 0.2 秒) 才能發射一次，防止子彈連成一線
+      // 2. 獵人射擊
       if ((keys['Space'] || keys['ArrowUp']) && (frame - lastFireFrame > 12)) {
         bullets.push({ x: hunterX, y: 440 });
         lastFireFrame = frame;
       }
 
-      // 3. 子彈移動邏輯
+      // 3. 子彈移動
       for (let i = bullets.length - 1; i >= 0; i--) {
         bullets[i].y -= 8;
         if (bullets[i].y < 0) bullets.splice(i, 1);
       }
 
-      // 4. 熊的生成邏輯 (隨難度增加)
+      // 4. 遊戲邏輯分流：BOSS 模式 vs 普通模式
+      if (bossMode) {
+        updateBossLogic();
+      } else {
+        updateNormalLogic();
+      }
+    }
+
+    // --- 普通模式邏輯 ---
+    function updateNormalLogic() {
+      // 檢查是否觸發 BOSS 戰
+      if (score >= nextBossThreshold) {
+        startBossFight();
+        return;
+      }
+
+      // 生成小熊
       let spawnRate = Math.max(12, 45 - Math.floor(score / 60));
       if (frame % spawnRate === 0) {
         bears.push({ 
           x: Math.random() * 340 + 30, 
           y: -30,
-          speed: 2 + (score / 300) // 熊的速度隨分數緩慢增加
+          speed: 2 + (score / 300)
         });
       }
 
-      // 5. 熊的移動與碰撞檢測
+      // 小熊移動與碰撞
       for (let bi = bears.length - 1; bi >= 0; bi--) {
         let bear = bears[bi];
         bear.y += bear.speed;
         
-        // 失敗條件：熊越過底線 或 碰到獵人
+        // 失敗判定
         if (bear.y > 500 || (Math.abs(bear.x - hunterX) < 25 && bear.y > 440)) {
           gameOver();
           return;
         }
 
-        // 子彈碰撞檢查
+        // 被子彈打中
         for (let ui = bullets.length - 1; ui >= 0; ui--) {
           let bullet = bullets[ui];
-          // 使用簡單的圓形/矩形距離檢測
-          let dist = Math.hypot(bullet.x - bear.x, bullet.y - bear.y);
-          if (dist < 25) {
+          if (Math.hypot(bullet.x - bear.x, bullet.y - bear.y) < 25) {
             bears.splice(bi, 1);
             bullets.splice(ui, 1);
             score += 10;
-            document.getElementById('score').innerText = score;
-            break; // 這隻熊已經被打掉，跳出子彈迴圈
+            updateScoreUI();
+            break;
           }
         }
       }
     }
 
+    // --- BOSS 模式邏輯 ---
+    function updateBossLogic() {
+        // BOSS 移動 (左右來回)
+        boss.x += boss.speed * boss.direction;
+        if (boss.x > 360 || boss.x < 40) {
+            boss.direction *= -1; // 碰到邊緣轉向
+        }
+
+        // BOSS 攻擊 (丟木頭)
+        boss.attackCooldown--;
+        // 約每 0.8 ~ 1.2 秒攻擊一次
+        if (boss.attackCooldown <= 0) {
+            logs.push({ x: boss.x, y: boss.y + 30, speed: 5 });
+            boss.attackCooldown = Math.random() * 30 + 30; // 30~60 幀冷卻
+        }
+
+        // 木頭移動與判定
+        for (let i = logs.length - 1; i >= 0; i--) {
+            let log = logs[i];
+            log.y += log.speed;
+            
+            // 木頭出界移除
+            if (log.y > 500) logs.splice(i, 1);
+
+            // 木頭打中獵人 -> GAME OVER
+            if (Math.abs(log.x - hunterX) < 30 && Math.abs(log.y - 465) < 30) {
+                gameOver();
+                return;
+            }
+        }
+
+        // 玩家攻擊 BOSS
+        for (let i = bullets.length - 1; i >= 0; i--) {
+            let b = bullets[i];
+            // 簡單矩形碰撞 (BOSS 比較大)
+            if (Math.abs(b.x - boss.x) < 40 && Math.abs(b.y - boss.y) < 40) {
+                boss.hp--;
+                bullets.splice(i, 1); // 移除子彈
+                
+                // BOSS 被擊敗
+                if (boss.hp <= 0) {
+                    defeatBoss();
+                }
+                break;
+            }
+        }
+    }
+
+    function startBossFight() {
+        bossMode = true;
+        bears = []; // 清空場上小熊
+        
+        // 初始化 BOSS
+        boss.hp = 20;
+        boss.x = 200;
+        boss.attackCooldown = 60;
+        logs = [];
+
+        // 顯示警告
+        const warning = document.getElementById('bossWarning');
+        warning.classList.add('warning-active');
+        setTimeout(() => warning.classList.remove('warning-active'), 2000);
+    }
+
+    function defeatBoss() {
+        bossMode = false;
+        score += 100; // 擊敗 BOSS 獎勵分
+        nextBossThreshold += 500; // 設定下一次 BOSS 的分數門檻
+        updateScoreUI();
+        
+        // 增加一點普通模式的難度 (可選)
+        // 這裡暫時不做額外加速，因為 score 增加已經會讓小熊變快
+    }
+
+    function updateScoreUI() {
+        document.getElementById('score').innerText = score;
+        document.getElementById('nextBoss').innerText = nextBossThreshold;
+    }
+
     function draw() {
       ctx.clearRect(0, 0, 400, 500);
       
-      // 繪製背景裝飾 (簡易草地質感)
+      // 背景
       ctx.fillStyle = "#254d20";
       for(let i=0; i<10; i++) ctx.fillRect(i*50, (frame%100), 2, 20);
 
-      // 繪製獵人 🤠
+      // 畫獵人
       ctx.font = "32px serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText("🤠", hunterX, 465);
 
-      // 繪製子彈 (黃色光點)
+      // 畫玩家子彈
       ctx.fillStyle = "#fbbf24";
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = "yellow";
       bullets.forEach(b => {
         ctx.beginPath();
         ctx.arc(b.x, b.y, 4, 0, Math.PI * 2);
         ctx.fill();
-        // 子彈光暈
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = "yellow";
       });
-      ctx.shadowBlur = 0; // 重置光暈
+      ctx.shadowBlur = 0;
 
-      // 繪製熊 🐻
-      ctx.font = "30px serif";
-      bears.forEach(bear => {
-        ctx.fillText("🐻", bear.x, bear.y);
-      });
+      // --- 繪製 BOSS 模式元件 ---
+      if (bossMode) {
+          // 畫 BOSS (大隻熊)
+          ctx.font = "60px serif";
+          ctx.fillText("🐻", boss.x, boss.y);
+          
+          // 畫木頭 (BOSS 子彈)
+          ctx.font = "30px serif";
+          logs.forEach(log => {
+              ctx.fillText("🪵", log.x, log.y);
+          });
+
+          // 畫 BOSS 血條
+          drawHealthBar();
+
+      } else {
+          // 畫普通小熊
+          ctx.font = "30px serif";
+          bears.forEach(bear => {
+            ctx.fillText("🐻", bear.x, bear.y);
+          });
+      }
+    }
+
+    function drawHealthBar() {
+        const barWidth = 200;
+        const barHeight = 20;
+        const x = (canvas.width - barWidth) / 2;
+        const y = 10;
+        
+        // 血條外框
+        ctx.strokeStyle = "white";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x, y, barWidth, barHeight);
+        
+        // 血量內容 (紅色)
+        const hpPercent = boss.hp / boss.maxHp;
+        ctx.fillStyle = "red";
+        ctx.fillRect(x + 2, y + 2, (barWidth - 4) * hpPercent, barHeight - 4);
+        
+        // 文字標示
+        ctx.fillStyle = "white";
+        ctx.font = "12px sans-serif";
+        ctx.fillText("BOSS HP: " + boss.hp, canvas.width/2, y + 35);
     }
 
     function gameOver() {
@@ -179,12 +373,9 @@
     function submitScore() {
       const name = document.getElementById('playerName').value || "無名獵人";
       const btn = document.getElementById('submitBtn');
-      
       if (name.trim() === "") return alert("請輸入代號！");
-
       btn.disabled = true;
       btn.innerText = "傳送中...";
-
       google.script.run
         .withSuccessHandler(res => {
           alert(res.message);
@@ -196,16 +387,13 @@
         .withFailureHandler(err => {
           alert("儲存失敗：" + err);
           btn.disabled = false;
-          btn.innerText = "上傳分數 (Create)";
         })
         .createScore(name, score);
     }
 
     function navToLeaderboard() {
       google.script.run
-        .withSuccessHandler(url => {
-          window.open(url + "?page=leaderboard", "_top");
-        })
+        .withSuccessHandler(url => window.open(url + "?page=leaderboard", "_top"))
         .getScriptUrl();
     }
   </script>
