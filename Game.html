@@ -43,7 +43,7 @@
     <h1 class="text-4xl font-bold text-yellow-500 mb-2">🤠 獵人 vs 熊 🐻</h1>
     <div class="flex justify-between px-4 text-xl font-mono font-bold">
         <p>分數: <span id="score" class="text-white">0</span></p>
-        <p class="text-yellow-400 text-sm mt-1">下個BOSS: <span id="nextBoss">500</span></p>
+        <p class="text-yellow-400 text-sm mt-1">下個BOSS: <span id="nextBoss">300</span></p>
     </div>
   </div>
 
@@ -57,7 +57,7 @@
         <button id="startBtn" onclick="initGame()" class="bg-green-600 hover:bg-green-700 px-8 py-2 rounded-full font-bold transition-all">開始獵捕</button>
         <button onclick="navToLeaderboard()" class="bg-blue-600 hover:bg-blue-700 px-8 py-2 rounded-full font-bold transition-all">排行榜</button>
     </div>
-    <p class="text-xs text-gray-500">控制：左右移動，空白鍵/上鍵射擊 | 每500分遭遇 BOSS</p>
+    <p class="text-xs text-gray-500">控制：左右移動，空白鍵/上鍵射擊 | 首領出現：300分, 之後每500分</p>
   </div>
 
   <!-- 遊戲結束對話框 -->
@@ -91,7 +91,8 @@
     
     // BOSS 相關變數
     let bossMode = false;
-    let nextBossThreshold = 500;
+    // 修改點 1：初始門檻設為 300
+    let nextBossThreshold = 300; 
     let logs = []; // BOSS 的攻擊 (木頭)
     let boss = {
         x: 200,
@@ -125,13 +126,15 @@
       
       // 重置 BOSS 狀態
       bossMode = false;
-      nextBossThreshold = 500;
+      // 修改點 2：重置遊戲時，第一隻 Boss 設為 300 分
+      nextBossThreshold = 300;
       
       // UI 更新
       document.getElementById('startBtn').innerText = "進行中...";
       document.getElementById('startBtn').disabled = true;
       document.getElementById('score').innerText = "0";
-      document.getElementById('nextBoss').innerText = "500";
+      // 修改點 3：UI 初始顯示 300
+      document.getElementById('nextBoss').innerText = "300";
       document.getElementById('saveModal').classList.add('hidden');
       
       loop();
@@ -280,11 +283,9 @@
     function defeatBoss() {
         bossMode = false;
         score += 100; // 擊敗 BOSS 獎勵分
-        nextBossThreshold += 500; // 設定下一次 BOSS 的分數門檻
+        // 修改點 4：擊敗後，下一次的門檻增加 500 (300 -> 800 -> 1300...)
+        nextBossThreshold += 500; 
         updateScoreUI();
-        
-        // 增加一點普通模式的難度 (可選)
-        // 這裡暫時不做額外加速，因為 score 增加已經會讓小熊變快
     }
 
     function updateScoreUI() {
@@ -395,6 +396,10 @@
       google.script.run
         .withSuccessHandler(url => window.open(url + "?page=leaderboard", "_top"))
         .getScriptUrl();
+    }
+  </script>
+</body>
+</html>
     }
   </script>
 </body>
